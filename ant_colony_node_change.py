@@ -13,21 +13,25 @@ class Graph:
         """
         Initializer for creating the construction graph to model BPP
         """
-        self.nodes = set()
-        # self.edges = defaultdict(set)
+        self.nodes = dict()
         self.edge_pheremone = dict()
         
     def addNode(self, name):
         """
         Add a node to the graph
         """
-        self.nodes.add(name)
+        self.nodes[name] = []
+    
+    def getNode(self, name):
+        return self.nodes[name]
+
+    def addNodeAdjacents(self, node, adjacent):
+        self.nodes[node].append(adjacent)
 
     def set_edge_pheromones(self, u: tuple, v: tuple, pheromone_value: float) -> None:
         """
         Initalise the pheromone on edges of the graph
         """
-        self.edges[u].add(v)
         self.edge_pheremone[(u,v)]= pheromone_value
 
     def get_edge_pheromone(self, u: int, v: int) -> float:
@@ -36,8 +40,9 @@ class Graph:
         """
         return self.edge_pheremone[(u,v)]
     
-    def get_edge_pheromones(self, current_bin):
-        return [val for key, val in self.edge_pheremone.items() if (current_bin,_) in key]
+
+    # def get_edge_pheromones(self, current_bin):
+    #     return [val for key, val in self.edge_pheremone.items() if (current_bin,_) in key]
     
     def update_edge_pheromone(self, u: tuple, v: tuple, delta ) -> None:
         """
@@ -108,15 +113,19 @@ class AntColonyOptimization:
         self.graph.addNode('Start')
         self.graph.addNode('End')
 
-        for bin in range(1,bins+1):
-            self.graph.set_edge_pheromones(('Start'),(1,bin), np.random.random())
-            self.graph.set_edge_pheromones((items+1,bin), ('End'), np.random.random())
-
-        for item in range(1,items+1):
+        for item in range(1,items):
             for bin in range(1,bins+1):
                 self.graph.addNode((item,bin))
                 for nextBin in range(1,bins+1):
+                    self.graph.addNodeAdjacents((item,bin), (item+1,nextBin))
                     self.graph.set_edge_pheromones((item,bin),(item+1,nextBin), np.random.random())
+
+        for bin in range(1,bins+1):
+            self.graph.addNode((items, bin))
+            self.graph.addNodeAdjacents('Start', (1,bin))
+            self.graph.addNodeAdjacents((items,bin), 'End')
+            self.graph.set_edge_pheromones(('Start'),(1,bin), np.random.random())
+            self.graph.set_edge_pheromones((items,bin), ('End'), np.random.random())
     
     def update_path_pheromone(self, path: list, fitness: float):
         """
@@ -136,30 +145,30 @@ class AntColonyOptimization:
             self.graph.evaporate_edge_pheromone(u,v,self.e)
 
     def traverse_graph(self, cost , current_bin='Start', item=1, path=[]):
-        
-        ph=[]
 
-        if item == 1:
-            current_bin='Start'
-            path = [('Start')]
-       
-        for neighbour in sorted(self.graph.edges[current_bin]):
-            if neighbour == 'End':
-                path.append('End')
-                return path, cost
+        adjacents = self.graph.getNode(current_bin)
+
+        if 'End' in adjacents:
+            path.append('End')
+            return path, cost
             
-            ph.append(self.graph.get_edge_pheromone(current_bin, neighbour))
-        choice_probabilities = [pheromone / sum(ph) for pheromone in ph]  #maybe check this
-        
-        next_bin = random.choices(np.arange(1, self.bins+1, 1), choice_probabilities)[0].item()
-        current_bin = (item, next_bin)
+        if item == 1:
+            path = [('Start')]
+            
+        pheromones = [self.graph.get_edge_pheromone(current_bin, val) for val in self.graph.getNode(current_bin)]
+        bias = [pheromone / sum(pheromones) for pheromone in pheromones]
+
+        next_bin = random.choices(adjacents , bias)[0]
+        current_bin = next_bin
         path.append(current_bin)
 
-        if self.BPP1 ==True:
-            cost[next_bin] += item
+        if self.BPP1:
+            cost[next_bin[1]] += item
         else:
-            cost[next_bin] += (item**2)/2
-        item+=1
+            cost[next_bin[1]] += (item**2)/2
+        
+        item = item + 1
+        
         return self.traverse_graph(cost,current_bin,item,path)
     
     def ant_path_generate(self):
@@ -190,7 +199,8 @@ class AntColonyOptimization:
                 path_information.append((path, fitness))
 
                 if fitness < self.bestFitness:
-                    print("Old bestFitness:",self.bestFitness," New bestFitness: ",fitness," Evaluation: ", self.num_eval, "Decrease of ", round(((self.bestFitness-fitness)/self.bestFitness)*100),"%" )
+                    print("New bestFitness: ",fitness," Evaluation: ", self.num_eval, "Decrease of ", \
+                           round(((self.bestFitness-fitness)/self.bestFitness)*100),"%" )
                     self.bestFitness = fitness
                     self.best_path = path
 
