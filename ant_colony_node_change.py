@@ -3,8 +3,13 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import sys
+import os
 
 sys.setrecursionlimit(10000)
+
+# Directory for saving run info
+RUNS_DIR = "runs"
+os.makedirs(RUNS_DIR, exist_ok=True)
 
 
 class Graph:
@@ -16,45 +21,54 @@ class Graph:
         self.nodes = dict()
         self.edge_pheremone = dict()
         
-    def addNode(self, name):
+    def addNode(self, name: tuple)-> None:
         """
         Add a node to the graph
         """
         self.nodes[name] = []
     
-    def getNode(self, name):
+    def getAdjacentsToNode(self, name: tuple)-> list:
+        """
+        Get the list of adjacent nodes to the specified one
+        """
         return self.nodes[name]
 
-    def addNodeAdjacents(self, node, adjacent):
+    def addNodeAdjacents(self, node: tuple, adjacent: tuple) -> None:
+        """
+        Add a node to the adjacency list of a specified node
+        """
         self.nodes[node].append(adjacent)
 
     def set_edge_pheromones(self, u: tuple, v: tuple, pheromone_value: float) -> None:
         """
-        Initalise the pheromone on edges of the graph
+        Initalise the pheromone on the edge between node u and node v of the graph
         """
         self.edge_pheremone[(u,v)]= pheromone_value
 
     def get_edge_pheromone(self, u: int, v: int) -> float:
         """
-        Get the pheromone located between the edges of two nodes
+        Get the pheromone located between the edge of node u and node v
         """
         return self.edge_pheremone[(u,v)]
     
-
-    # def get_edge_pheromones(self, current_bin):
-    #     return [val for key, val in self.edge_pheremone.items() if (current_bin,_) in key]
     
-    def update_edge_pheromone(self, u: tuple, v: tuple, delta ) -> None:
+    def update_edge_pheromone(self, u: tuple, v: tuple, delta: float ) -> None:
         """
-        Update the amount of pheromone located on an edge by delta
+        Update the amount of pheromone located on the edge between node u and v by delta
         """
         self.edge_pheremone[(u,v)] += delta
 
-    def evaporate_edge_pheromone(self, u: tuple, v:tuple, e) -> None:
+    def evaporate_edge_pheromone(self, u: tuple, v: tuple, e: float) -> None:
         """
         Evaporate the amount of pheromone located on the edge of two nodes
         """
         self.edge_pheremone[(u,v)] *= e
+
+    def restore_edge_pheromone(self, u: tuple, v: tuple) -> None:
+        """
+        Evaporate the amount of pheromone located on the edge of two nodes
+        """
+        self.edge_pheremone[(u,v)] = np.random.random()
 
     def printGraph(self):
         """
@@ -64,13 +78,12 @@ class Graph:
             print(f"{u} -> {v} : Pheromone {self.edge_pheremone[(u,v)]}")
 
 
-
 class AntColonyOptimization:
     """
-    AntColonyOptimization class for ACO problem experiments and solutions.
+    AntColonyOptimization class for ACO problem experiments
     """
     best_path = []
-    bestFitness = 100000
+    bestFitness = 100000000000000
     num_eval = 0
     max_eval = 0
     graph = None
@@ -87,12 +100,15 @@ class AntColonyOptimization:
         Initializer for an Ant Colony Optimization (ACO) algorithm class. It sets up the essential
         parameters and data structures needed for the ACO process.
 
-        :param trials: The number of trials of the ACO algorithm run
+        :param max_eval: The number of evaluations to be run each 
         :param bins: The number of bins 
         :param items: The number of items to be packed into bins
-        :param p: The number of ants that explore paths
-        :param e: The evaporation rate of pheromone
+        :param p: The size of the colony of ants that explore paths 
+        :param e: The evaporation rate of the pheromone
+        :param name: The name of the environment for the experiment
+        :param BPP1: Indicates whether the items are evaluated with cost BPP1 or BPP2 
         """
+
         self.name = name
         self.max_eval = max_eval
         self.bins = bins
@@ -103,11 +119,19 @@ class AntColonyOptimization:
         self.initalise_graph(bins, items)
 
     def reset(self):
-        self.initalise_graph(self.bins, self.items)
+        """
+        Function perfroms actions required to re-run the algorithm. i.e restores the pheromone on all edges to random values
+        """
+        self.restore_pheromone()
         self.num_eval = 0
-        self.bestFitness = 1000000
+        self.bestFitness = 1000000000000
 
-    def initalise_graph(self, bins, items):
+    def initalise_graph(self, bins: int, items: int)->None:
+        """
+        Function initalises the construction graph representing the BPP and adds pheromones to edges
+        : param bins: The number of bins
+        : param items: The number of items
+        """
         self.graph = Graph()
 
         self.graph.addNode('Start')
@@ -127,38 +151,51 @@ class AntColonyOptimization:
             self.graph.set_edge_pheromones(('Start'),(1,bin), np.random.random())
             self.graph.set_edge_pheromones((items,bin), ('End'), np.random.random())
     
-    def update_path_pheromone(self, path: list, fitness: float):
+    def update_path_pheromone(self, path: list, fitness: float)->None:
         """
         Update pheromone in the graph based on fitness achieved by the ant in its path
-        :param path: List of vertex represents ant traval sequence.
-        :param fitness: Float fitness of ant travel path.
+        :param path: List of vertex representing the path of travelled by the ant
+        :param fitness: fitness value of the path variable
         """
         for u, v in zip(path, path[1:]):
             self.graph.update_edge_pheromone(u, v, (100/fitness))
 
-    def evaporate_pheromone(self):
+    def evaporate_pheromone(self)->None:
         """
         Apply pheromone evaporation to the graph
-        :return: None
         """
         for u, v in self.graph.edge_pheremone:
             self.graph.evaporate_edge_pheromone(u,v,self.e)
 
-    def traverse_graph(self, cost , current_bin='Start', item=1, path=[]):
+    def restore_pheromone(self)->None:
+        """
+        Restores the pheromone to random values for all edges of the construction graph
+        """
+        for u, v in self.graph.edge_pheremone:
+            self.graph.restore_edge_pheromone(u,v)
 
-        adjacents = self.graph.getNode(current_bin)
+    def traverse_graph(self, cost , current_bin='Start', item=1, path=[]):
+        """
+        Recursive method for mapping a path for an ant through a network 
+        : param cost: A dictionary that tracks the number of items in each bin
+        : paran current_bin: The current bin when the method was called. Default is 'Start' for the first occurrence of the function called
+        : param item: The current item that need to be placed in a bin 
+        : param path: The path that has been traversed by the ant
+        """
+
+        adjacents = self.graph.getAdjacentsToNode(current_bin)
 
         if 'End' in adjacents:
             path.append('End')
-            return path, cost
+            return path, cost   # If end is adjacent to the current node then recursion ends and path and cost is returned
             
         if item == 1:
             path = [('Start')]
             
-        pheromones = [self.graph.get_edge_pheromone(current_bin, val) for val in self.graph.getNode(current_bin)]
-        bias = [pheromone / sum(pheromones) for pheromone in pheromones]
+        pheromones = [self.graph.get_edge_pheromone(current_bin, val) for val in adjacents] # Pheromone on the adjacent edges 
+        bias = [pheromone / sum(pheromones) for pheromone in pheromones]                    # Work out biases
 
-        next_bin = random.choices(adjacents , bias)[0]
+        next_bin = random.choices(adjacents , bias)[0]                                      # Next bin chosen saccounting for bias
         current_bin = next_bin
         path.append(current_bin)
 
@@ -169,11 +206,14 @@ class AntColonyOptimization:
         
         item = item + 1
         
-        return self.traverse_graph(cost,current_bin,item,path)
+        return self.traverse_graph(cost,current_bin,item,path)                               # Recursive call with new bin, updated path, and next item, and cost
     
     def ant_path_generate(self):
         """
-        Traverses the graph, then returns the path and fitness
+        Initalises the cost dictionary, aquires a traversal path by an ant and calculates fitness
+        : return path: List containing the path of nodes traversed
+        : return fitness: The fitness of the path
+
         """
         cost = {key:0 for key in range(1,self.bins+1)}
         path, cost = self.traverse_graph(cost)
@@ -183,68 +223,109 @@ class AntColonyOptimization:
     
     def ant_colony_evaluation(self):
         """
-        Main process function for ant colony optimization evaluation.
-        Output the best path and its distance and the number of evaluation to find.
-        :return: Tuple of (distance, number of evaluation for the best path, the best path)
+        Main process function for ant colony optimization evaluations
+        : return: The best path found
+        : return: The fitness of the best path
         """
         while self.num_eval < self.max_eval:
 
-            # "paths_info" as a list for tuple (path, distance, num_eva)
+            # "paths_information" as a list of tuple (path, fitness)
             path_information= []
 
-            # Generate ant paths and compare for best fitness. 
+            # Generate p ant paths and compare each one with the best fitness
             for _ in range(self.p):
                 self.num_eval += 1
                 path, fitness = self.ant_path_generate()
                 path_information.append((path, fitness))
 
                 if fitness < self.bestFitness:
-                    print("New bestFitness: ",fitness," Evaluation: ", self.num_eval, "Decrease of ", \
+                    print("BestFitness: ",fitness,"| Evaluation: ", self.num_eval, "| Decrease of ", \
                            round(((self.bestFitness-fitness)/self.bestFitness)*100),"%" )
                     self.bestFitness = fitness
                     self.best_path = path
 
-            # Apply pheromone update.
+            # Apply pheromone update
             for info in path_information:
                 self.update_path_pheromone(info[0],info[1])
 
-            # Apply pheromone evaporation.
+            # Apply pheromone evaporation
             self.evaporate_pheromone()
 
-        print("[ACO] \"{}\" Evaluations Complete.".format(self.name))
         return self.best_path, self.bestFitness
+
+def plotExperiments(file_location, experiments):
+    """
+    Creates a visual representation of the best fitness achieved in each experiment
+    """
+    
+    fig = plt.figure(1, figsize = (10,8))
+    ax  = fig.add_subplot() # plot on a 2 row x 2 col grid, at cell 1
+
+    labels = np.arange(4)  # the label locations
+    width =0.1
+
+    for x in range(0, len(experiments)):
+        ax.bar(x-0.2, experiments[x][0], width, color='#003f5c')
+        ax.bar(x-0.1, experiments[x][1], width, color='#58508d')
+        ax.bar(x,     experiments[x][2], width, color='#bc5090')
+        ax.bar(x+0.1, experiments[x][3], width, color='#ff6361')
+        ax.bar(x+0.2, experiments[x][4], width, color='#ffa600')
+    
+    # plot data in grouped manner of bar type 
+    plt.xticks(labels, ['p=100 | e=0.9', 'p=100 | e=0.6', 'p=10 | e=0.9', 'p=10 | e=0.6'])  
+    plt.ylabel("Best Fitness") 
+    fig.legend(["Trial_1","Trial_2","Trial_3","Trial_4","Trial_5"], loc='upper center', ncol = 5)
+    # ax.set_ylim(0, 2000)
+    
+    fig.savefig(file_location)
+    plt.close(fig)
+
 
 if __name__ == "__main__":
 
-    aco_test_1 = AntColonyOptimization(max_eval=10000,bins=10,items=500,p=10,e=0.9,name="BPP1",BPP1=True)
-    
-    Trial_paths = []
-    Trial_fitness = []
+    GRAPH_FILE = os.path.join(RUNS_DIR, f'BPP2_Experiment_Graph.png')
+    STAT_FILE = os.path.join(RUNS_DIR, f'BPP_Result.txt')
 
-    for x in range(1,5):
-        path, fitness = aco_test_1.ant_colony_evaluation()
-        print("Trial", x,"Final Fitness: ", fitness)
-        Trial_paths.append(path)
-        Trial_fitness.append(fitness)
-        aco_test_1.reset()
+    f = open(STAT_FILE, "w")
+
+    Experiments = []
+    Experiment_results = []
+
+    random.seed(1)
+    np.random.seed(1)
+    Experiments.append(AntColonyOptimization(max_eval=10000,bins=10,items=500,p=100,e=0.9,name="BPP2 Exp_1",BPP1=False))
+    random.seed(1)
+    np.random.seed(1)
+    Experiments.append(AntColonyOptimization(max_eval=10000,bins=10,items=500,p=100,e=0.6,name="BPP2 Exp_2",BPP1=False))
+    random.seed(1)
+    np.random.seed(1)
+    Experiments.append(AntColonyOptimization(max_eval=10000,bins=10,items=500,p=10,e=0.9,name="BPP2 Exp_3",BPP1=False))
+    random.seed(1)
+    np.random.seed(1)
+    Experiments.append(AntColonyOptimization(max_eval=10000,bins=10,items=500,p=10,e=0.6,name="BPP2 Exp_4",BPP1=False))
 
 
-    # plt.figure(figsize=(8, 6))
-    # plt.imshow(aco_test_1.pheromone_matrix, cmap='hot', interpolation='nearest', vmin=0., vmax=0.01)
-    # plt.colorbar()
-    # plt.title("Pheromone Matrix Brazil")
-    # plt.xlabel("City j")
-    # plt.ylabel("City i")
-    # plt.show()
-    # plt.imshow(aco_test_2.pheromone_matrix, cmap='hot', interpolation='nearest', vmin=0., vmax=0.1)
-    # plt.colorbar()
-    # plt.title("Pheromone Matrices Burma 1")
-    # plt.xlabel("City j")
-    # plt.ylabel("City i")
-    # plt.show()
-    # plt.imshow(aco_test_3.pheromone_matrix, cmap='hot', interpolation='nearest', vmin=0., vmax=0.1)
-    # plt.colorbar()
-    # plt.title("Pheromone Matrices Burma 2")
-    # plt.xlabel("City j")
-    # plt.ylabel("City i")
-    # plt.show()
+    for experiment in Experiments:
+        print("[ACO] \"{}\" Evaluation Begin ".format(experiment.name))
+        f.write(f'Experiment {experiment.name}\n')
+        Trial_fitness = []
+        for trial in range(0,5):
+            random.seed()
+            path, fitness = experiment.ant_colony_evaluation()
+            Trial_fitness.append(fitness)
+            experiment.reset()
+            f.write(f"Trial: {trial+1} Final Fitness: {fitness}\n")
+            print(f"Trial: {trial+1} Final Fitness: {fitness}")
+
+        Experiment_results.append(Trial_fitness)
+
+    # random.seed(0)
+    # np.random.seed(0)
+    # test = AntColonyOptimization(max_eval=10000,bins=10,items=500,p=10,e=0.9,name="Christian TEST",BPP1=True)
+    # path, fitness = test.ant_colony_evaluation()
+    # print(f"Trial 1 | Final Fitness: {fitness}")
+
+    plotExperiments(GRAPH_FILE, Experiment_results)
+    f.close()
+
+    #Need to seed the same value for the different trials to be the same so can get accurate comparison
