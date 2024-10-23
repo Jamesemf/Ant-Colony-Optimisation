@@ -1,0 +1,32 @@
+
+Experiment BPP1 Exp_1
+Trial: 1 Final Fitness: 1398
+Trial: 2 Final Fitness: 1728
+Trial: 3 Final Fitness: 1975
+Trial: 4 Final Fitness: 1391
+Trial: 5 Final Fitness: 1941
+Trial std = 253.09176201528172
+
+Experiment BPP1 Exp_2
+Trial: 1 Final Fitness: 1674
+Trial: 2 Final Fitness: 1299
+Trial: 3 Final Fitness: 1427
+Trial: 4 Final Fitness: 1672
+Trial: 5 Final Fitness: 1035
+Trial std = 241.2157540460407
+
+Experiment BPP1 Exp_3
+Trial: 1 Final Fitness: 696
+Trial: 2 Final Fitness: 751
+Trial: 3 Final Fitness: 672
+Trial: 4 Final Fitness: 611
+Trial: 5 Final Fitness: 947
+Trial std = 114.94798823815927
+
+Experiment BPP1 Exp_4
+Trial: 1 Final Fitness: 1899
+Trial: 2 Final Fitness: 1314
+Trial: 3 Final Fitness: 1374
+Trial: 4 Final Fitness: 900
+Trial: 5 Final Fitness: 702
+Trial std = 415.3872410173428
